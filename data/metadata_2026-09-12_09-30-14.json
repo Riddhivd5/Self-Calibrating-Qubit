@@ -1,0 +1,36 @@
+{
+    "timestamp_utc": "2026-09-12T09:30:14.063886+00:00",
+    "backend": "ibm_fez",
+    "job_id": "daihnc9hvn6c73ct9mvg",
+    "qubits": [
+        0,
+        1,
+        2
+    ],
+    "shots_per_circuit": 1000,
+    "circuits": 6,
+    "total_iq_points": 6000,
+    "measurement_type": "kerneled",
+    "qpu_usage_seconds": 4,
+    "calibration": {
+        "q0": {
+            "T1_seconds": 4.56143843926998e-05,
+            "T2_seconds": 4.910619545475993e-05,
+            "readout_error": 0.02197265625,
+            "readout_length_seconds": 1.66e-06
+        },
+        "q1": {
+            "T1_seconds": 0.00020306218945722807,
+            "T2_seconds": 0.0002622810515986661,
+            "readout_error": 0.013916015625,
+            "readout_length_seconds": 1.66e-06
+        },
+        "q2": {
+            "T1_seconds": 0.00026157428618934846,
+            "T2_seconds": 0.00016749256784857403,
+            "readout_error": 0.0029296875,
+            "readout_length_seconds": 1.66e-06
+        },
+        "last_update": "2026-09-12 14:03:15+05:30"
+    }
+}
