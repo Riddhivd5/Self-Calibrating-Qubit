@@ -3,7 +3,7 @@ IQ Drift Generator
 
 Generates synthetic superconducting-qubit IQ readout data.
 
-Version: 1.4
+Version: 1.5
 
 Features:
 - Two IQ clouds for |0> and |1>
@@ -39,10 +39,11 @@ validation because the real dataset does not provide a time-resolved
 T1 trajectory. Decay can still be enabled explicitly by setting
 `decay_prob_base` and/or `decay_drift_per_hr` in DriftParams.
 
-Version 1.4 also provides explicit raw-IQ output helpers for the
-shared Person 4 hardware pipeline. The internal scientific model
-remains normalized; raw output is centered, scaled by the
-qubit-specific real-data separation scale, and multiplied by 2**28.
+Version 1.5 provides explicit raw-IQ output helpers for the shared
+Person 4 hardware pipeline. The internal scientific model remains
+normalized; raw output is centered, scaled by the qubit-specific
+real-data separation scale, shifted by the initial real-data midpoint,
+and multiplied by 2**28.
 
 Functions:
     generate_shots()
@@ -57,7 +58,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-__version__ = "1.4"
+__version__ = "1.5"
 
 
 # =============================================================
@@ -154,7 +155,7 @@ DRIFT_PROFILES = {
 
 
 # =============================================================
-# Raw IQ scale profiles
+# Raw IQ scale profiles and absolute positions
 # =============================================================
 #
 # Person 4's shared hardware representation uses:
@@ -180,6 +181,17 @@ ABSOLUTE_IQ_SEPARATION_SCALE = {
     "q0": 0.4876,
     "q1": 0.2793,
     "q2": 0.7946,
+}
+
+# Initial real-data midpoint offsets, normalized by 2**28.
+# These preserve the absolute location of the IQ clouds in the raw
+# representation instead of forcing every qubit midpoint to (0, 0).
+# Values are taken from the first real IBM IQ dataset used as t=0.
+ABSOLUTE_IQ_MIDPOINT_OFFSET = {
+    "generic": 0.0 + 0.0j,
+    "q0": -0.024950144147500394 - 0.07133270070888101j,
+    "q1": -0.0176639663297683 - 0.06294413346424699j,
+    "q2": -0.01336997173726559 - 0.4157145787551999j,
 }
 
 RAW_IQ_SCALE = 2 ** 28
@@ -397,23 +409,31 @@ class IQDriftGenerator:
             |1> ~= 1
 
         Raw normalized-by-2^28 convention:
-            |0> ~= -S/2
-            |1> ~= +S/2
+            midpoint = M
+            |0> ~= M - S/2
+            |1> ~= M + S/2
 
-        where S is the profile-specific initial separation scale.
+        where S is the profile-specific initial separation scale and M
+        is the profile-specific initial real-data midpoint offset.
         """
 
         separation_scale = (
             self._absolute_iq_separation_scale()
         )
 
+        midpoint_offset = ABSOLUTE_IQ_MIDPOINT_OFFSET[
+            self.p.drift_profile
+        ]
+
         centered = (
             iq - 0.5
         )
 
         return (
-            centered
-            * separation_scale
+            (
+                centered * separation_scale
+                + midpoint_offset
+            )
             * RAW_IQ_SCALE
         )
 
