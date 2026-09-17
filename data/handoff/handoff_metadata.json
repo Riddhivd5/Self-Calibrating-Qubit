@@ -1,0 +1,55 @@
+{
+    "generator_version": "1.5",
+    "raw_iq_scale": 268435456,
+    "shots_per_state": 1000,
+    "channels_per_dataset": 6,
+    "qubit_profiles": {
+        "q0": "q0",
+        "q1": "q1",
+        "q2": "q2"
+    },
+    "datasets": [
+        {
+            "filename": "synthetic_000h.npz",
+            "elapsed_hours": 0.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_000h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_000h.npz"
+        },
+        {
+            "filename": "synthetic_024h.npz",
+            "elapsed_hours": 24.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_024h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_024h.npz"
+        },
+        {
+            "filename": "synthetic_048h.npz",
+            "elapsed_hours": 48.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_048h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_048h.npz"
+        },
+        {
+            "filename": "synthetic_072h.npz",
+            "elapsed_hours": 72.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_072h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_072h.npz"
+        },
+        {
+            "filename": "synthetic_096h.npz",
+            "elapsed_hours": 96.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_096h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_096h.npz"
+        },
+        {
+            "filename": "synthetic_120h.npz",
+            "elapsed_hours": 120.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_120h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_120h.npz"
+        },
+        {
+            "filename": "synthetic_144h.npz",
+            "elapsed_hours": 144.0,
+            "raw_file": "data\\handoff\\raw\\synthetic_144h.npz",
+            "normalized_file": "data\\handoff\\normalized\\synthetic_144h.npz"
+        }
+    ]
+}
