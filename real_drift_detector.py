@@ -62,6 +62,8 @@ def main():
     ap.add_argument("--d", type=int, default=5)
     ap.add_argument("--shots", type=int, default=4000)
     ap.add_argument("--zthr", type=float, default=3.0, help="alarm threshold in baseline standard deviations")
+    ap.add_argument("--rel-rise", type=float, default=0.30,
+                    help="alarm also needs fire rate or correlation at least this fraction above the healthy level")
     args = ap.parse_args()
 
     snaps = load_snapshots(args.data_dir)
@@ -111,7 +113,16 @@ def main():
 
     z_fire = np.array([r[6] for r in rows])
     z_tc = np.array([r[7] for r in rows])
-    alarm = (z_fire > args.zthr) | (z_tc > args.zthr)
+    fire_arr = np.array([r[3] for r in rows]); tc_arr = np.array([r[4] for r in rows])
+    rise_fire = fire_arr / bf.mean() - 1.0
+    rise_tc = tc_arr / bt.mean() - 1.0
+
+    def alarm_rule(rel):
+        sig = (z_fire > args.zthr) | (z_tc > args.zthr)
+        big_enough = (rise_fire > rel) | (rise_tc > rel)
+        return sig & big_enough
+
+    alarm = alarm_rule(args.rel_rise)
 
     print(f"\nbaseline noise: fire rate {bf.mean():.4f} +/- {bf.std():.4f}, tcorr {bt.mean():.5f} +/- {bt.std():.5f}")
     print(f"snapshots with alarm (z > {args.zthr}): {alarm.sum()} of {len(alarm)}")
@@ -124,6 +135,14 @@ def main():
         print(f"  alarms when IBM numbers changed: {(alarm & recal).sum()} of {recal.sum()}")
     big = p_ro > 2 * p_base
     print(f"\nbig drift events (readout error > 2x healthy baseline): {big.sum()}  ->  alarms on them: {(alarm & big).sum()} of {big.sum()}")
+    quiet = p_ro < 1.25 * p_base
+    print(f"quiet snapshots (readout error < 1.25x baseline): {quiet.sum()}")
+    print(f"\nalarm rule: z > {args.zthr} AND rise above healthy > rel-rise")
+    print("  rel-rise | alarms total | big events caught | false alarms on quiet snapshots")
+    for rel in (0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50):
+        a = alarm_rule(rel)
+        mark = "  <- used" if abs(rel - args.rel_rise) < 1e-9 else ""
+        print(f"   {rel:5.2f}   |   {a.sum():4d}       |   {(a & big).sum()} of {big.sum()}        |   {(a & quiet).sum()} of {quiet.sum()}{mark}")
     print("\nlargest readout-error snapshots:")
     for i in np.argsort(p_ro)[::-1][:5]:
         print(f"  {rows[i][0][:19]}  p={p_ro[i]:.4f}  z_fire={z_fire[i]:+.1f}  z_tcorr={z_tc[i]:+.1f}  alarm={bool(alarm[i])}")
