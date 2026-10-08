@@ -27,17 +27,19 @@ def _add_readout_flips(circ, p, scale):
     return out
 
 
-def build_circuit(d, rounds=None, p_readout=0.0, p_phys=0.0, readout_scale=None):
+def build_circuit(d, rounds=None, p_readout=0.0, p_phys=0.0, readout_scale=None, phys_mode="both"):
     """
     p_readout     : readout flip probability (before every measurement)
-    p_phys        : physical error rate (data depolarisation each round + Clifford depolarisation)
+    p_phys        : physical error rate
+    phys_mode     : "both" = data + gate noise, "data" = data-qubit noise only,
+                    "gate" = gate noise only (hits the ancillas too, so it can mimic readout errors)
     readout_scale : optional {qubit_index: multiplier} so readout drift can hit some ancillas harder
     """
     rounds = rounds or d
     base = stim.Circuit.generated(
         "surface_code:rotated_memory_z", distance=d, rounds=rounds,
-        before_round_data_depolarization=p_phys,
-        after_clifford_depolarization=p_phys)
+        before_round_data_depolarization=p_phys if phys_mode in ("both", "data") else 0.0,
+        after_clifford_depolarization=p_phys if phys_mode in ("both", "gate") else 0.0)
     return _add_readout_flips(base, p_readout, readout_scale or {})
 
 
