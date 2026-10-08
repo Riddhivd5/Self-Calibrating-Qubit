@@ -30,11 +30,24 @@ def run(mode,W,nwin,seed0):
                 det,_=sample_window(c,W,seed=seed0+k+1000*lab+100000*int(m*10))
                 f=features(det,lay,ref); X.append([f['fire_rate'],f['tcorr'],f['asym']]); y.append(lab)
     return np.array(X),np.array(y)
-for mode in ("uniform","hot-ancilla"):
-  for W in (200,1000):
-    Xa,ya=run(mode,W,150,0); Xb,yb=run(mode,W,150,10_000_000)   # disjoint seeds train/test
-    out=[]
-    for name,cols in (("fire only",[0]),("tcorr",[1]),("asym",[2]),("tcorr+asym",[1,2]),("all3",[0,1,2])):
-        sc=StandardScaler().fit(Xa[:,cols]); lr=LogisticRegression().fit(sc.transform(Xa[:,cols]),ya)
-        out.append("%s %.3f"%(name,roc_auc_score(yb,lr.predict_proba(sc.transform(Xb[:,cols]))[:,1])))
-    print(f"{mode:12s} W={W:5d} AUC:", " | ".join(out))
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), sharey=True)
+for ax, mode in zip(axes, ("uniform", "hot-ancilla")):
+    W = 200
+    Xa, ya = run(mode, W, 150, 0); Xb, yb = run(mode, W, 150, 10_000_000)  # disjoint seeds: train / test
+    out = []
+    for name, cols in (("fire rate only", [0]), ("correlation only", [1]), ("asymmetry only", [2]), ("all three", [0, 1, 2])):
+        sc = StandardScaler().fit(Xa[:, cols]); lr = LogisticRegression().fit(sc.transform(Xa[:, cols]), ya)
+        score = lr.predict_proba(sc.transform(Xb[:, cols]))[:, 1]
+        auc = roc_auc_score(yb, score); fpr, tpr, _ = roc_curve(yb, score)
+        ax.plot(fpr, tpr, label=f"{name} (AUC {auc:.3f})"); out.append(f"{name} {auc:.3f}")
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8)
+    ax.set_title(f"{mode} readout drift, {W}-shot windows"); ax.set_xlabel("false positive rate")
+    ax.legend(fontsize=8, loc="lower right")
+    print(f"{mode:12s} W={W}: " + " | ".join(out))
+axes[0].set_ylabel("true positive rate (positive = readout drift)")
+fig.tight_layout(); fig.savefig("attribution_roc.png", dpi=150)
+print("wrote attribution_roc.png")
