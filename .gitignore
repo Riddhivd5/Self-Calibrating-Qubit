@@ -19,3 +19,6 @@ logs/
 *.token.DS_Store
 fire_table.npy
 __pycache__/
+.DS_Store
+fire_table.npy
+__pycache__/
