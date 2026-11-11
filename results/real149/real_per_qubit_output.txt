@@ -1,0 +1,27 @@
+149 snapshots, span 375.2 h (15.6 d); last_update changes at 119 steps, IBM readout numbers change at 47, both at 47
+
+== q0: baseline error 0.0173 (event if > 0.0345), cloud sigma 2.18e+07 raw units
+  centroid shift in cloud-sigma units: median 1.05, max 1.32, snapshots > 1 sigma: 108, > 0.5 sigma: 146
+  events 3: alarmed 3 (sensitivity 1.00, 95% CI 0.44-1.00); missed 0
+  quiet snapshots 67: false alarms 0 (0.000, 95% CI 0.000-0.054)
+  onsets 1, caught within 4 windows 1; latency windows [0]
+  alarms total 46 of 149; alarms on snapshots where IBM numbers changed: 20 of 47; on last_update change: 44 of 119
+  event snapshots (hours): [44.5, 48.5, 52.5]; last_update changed at those: 3/3; IBM readout numbers changed: 2/3
+
+== q1: baseline error 0.0148 (event if > 0.0295), cloud sigma 1.67e+07 raw units
+  centroid shift in cloud-sigma units: median 0.23, max 2.33, snapshots > 1 sigma: 9, > 0.5 sigma: 27
+  events 17: alarmed 17 (sensitivity 1.00, 95% CI 0.82-1.00); missed 0
+  quiet snapshots 63: false alarms 0 (0.000, 95% CI 0.000-0.057)
+  onsets 8, caught within 4 windows 8; latency windows [0, 0, 0, 0, 0, 0, 0, 0]
+  alarms total 57 of 149; alarms on snapshots where IBM numbers changed: 19 of 47; on last_update change: 46 of 119
+  event snapshots (hours): [48.5, 64.5, 139.2, 140.5, 143.2, 144.5, 248.7, 264.5, 264.7, 291.2, 292.5, 292.7, 295.2, 315.2, 316.7, 348.5, 348.7]; last_update changed at those: 11/17; IBM readout numbers changed: 3/17
+
+== q2: baseline error 0.0045 (event if > 0.0100), cloud sigma 3.25e+07 raw units
+  centroid shift in cloud-sigma units: median 0.22, max 0.91, snapshots > 1 sigma: 0, > 0.5 sigma: 6
+  events 6: alarmed 6 (sensitivity 1.00, 95% CI 0.61-1.00); missed 0
+  quiet snapshots 105: false alarms 0 (0.000, 95% CI 0.000-0.035)
+  onsets 5, caught within 4 windows 5; latency windows [0, 0, 0, 0, 0]
+  alarms total 21 of 149; alarms on snapshots where IBM numbers changed: 7 of 47; on last_update change: 18 of 119
+  event snapshots (hours): [48.5, 212.5, 215.2, 219.2, 236.5, 307.2]; last_update changed at those: 6/6; IBM readout numbers changed: 0/6
+
+latency: one window = 4000 shots x 5 QEC rounds = 20000 syndrome rounds; the detector decides at the end of a window.
