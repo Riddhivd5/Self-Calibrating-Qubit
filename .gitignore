@@ -16,9 +16,6 @@ logs/
 
 *.key
 *.pem
-*.token.DS_Store
+*.token
 fire_table.npy
-__pycache__/
 .DS_Store
-fire_table.npy
-__pycache__/
