@@ -1,0 +1,7 @@
+Regression check of ler_comparison.py after the interval, lag-arm and flag changes (valid only against the generator as it was at commit a94f12f, before any generator refit)
+Command: python ler_comparison.py --scenarios readout_q1 --seeds 1 --no-detector --out-dir <new folder>
+Compared with results/gate2/ler_windows.csv (scenario readout_q1, run 0), per window, for the 9 arms that existed before
+(frozen, periodic_12h/24h/48h, oracle, moment_v1, em_pi, em_pi_fast, gated_v5): 387 rows.
+Result: max |difference in logical errors| = 0, max |difference in misassignment| = 0 (bit-identical).
+New arm only in the new output: em_pi_fast_lag (one-step-lag boundary). One seed, readout_q1: gap recovered 0.66 vs 0.97 for em_pi_fast (same-window data); periodic_12h 0.62.
+Gate 1 simulated d=3 line unchanged (LER 0.0036 -> 0.0133, p = 3.1e-26).

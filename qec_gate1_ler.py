@@ -94,14 +94,33 @@ def summarise(label, drift, ctrl, hrs=None):
     cpool = sum(kc) / sum(nc)
     clo, chi = wilson(sum(kc), sum(nc))
     above = sum(r["lo"] > chi for r in drift)
-    if hrs is not None:  # real drift is spiky, not monotonic: report peak window instead of trend tests
+    if hrs is not None:  # real drift is spiky, not monotonic: no trend test, no peak picked by LER
+        from scipy.stats import rankdata
+        pw = np.array([r["p"] for r in drift])
+        K, N = np.array(kd, float), np.array(nd, float)
+        # Windows are chosen by their READOUT error (known before decoding), never by their sampled LER: picking the
+        # highest-LER window and quoting its LER would be biased upward (winner's curse).
+        top = np.argsort(pw)[::-1][:3]
+        kt, nt = int(K[top].sum()), int(N[top].sum())
+        lo, hi = wilson(kt, nt)
+        p1, p2 = kt / nt, cpool
+        rng = np.random.default_rng(0)
+        # Permutation test of the SAME statistic (pooled LER of the 3 windows selected by readout error): shuffle which window
+        # each LER belongs to, keep the selection rule, recompute. This builds the selection step into the null.
+        null_top = np.array([K[rng.permutation(len(K))][top].sum() / N[top].sum() for _ in range(5000)])
+        p_top = float((1 + np.sum(null_top >= p1)) / 5001)
+        rk_p, rk_l = rankdata(pw), rankdata(K / N)
+        rho = float(np.corrcoef(rk_p, rk_l)[0, 1])
+        null = np.array([np.corrcoef(rk_p, rng.permutation(rk_l))[0, 1] for _ in range(5000)])
+        p_perm = float((1 + np.sum(null >= rho)) / 5001)  # one-sided permutation test: LER rises with readout error
         ip = int(np.argmax([r["ler"] for r in drift]))
-        pk = drift[ip]
         return [f"- {label} ({nd[0]} shots per window): control pooled LER {cpool:.4f} [{clo:.4f}, {chi:.4f}]; "
-                f"windows whose CI lies entirely above the control CI: {above} of {len(drift)}; "
-                f"peak window at {hrs[ip]:.0f} h: LER {pk['ler']:.4f} [{pk['lo']:.4f}, {pk['hi']:.4f}] "
-                f"(readout error {pk['p']:.4f}), {pk['ler'] / cpool:.1f}x the control; "
-                f"control windows above the control CI: {sum(r['lo'] > chi for r in ctrl)} of {len(ctrl)}"]
+                f"3 windows with the highest readout error (chosen without looking at LER; readout error {pw[top].min():.4f}-{pw[top].max():.4f}): "
+                f"pooled LER {p1:.4f} [{lo:.4f}, {hi:.4f}] vs control {p2:.4f}, selection-aware permutation p = {p_top:.2g} (random windows give {np.mean(null_top):.4f}); "
+                f"rank correlation between window readout error and window LER {rho:+.2f}, permutation p = {p_perm:.2g}; "
+                f"windows whose CI lies entirely above the control CI: {above} of {len(drift)} "
+                f"(control windows above the control CI: {sum(r['lo'] > chi for r in ctrl)} of {len(ctrl)}); "
+                f"descriptive only, selected by max LER and biased upward: window at {hrs[ip]:.0f} h, LER {drift[ip]['ler']:.4f}"]
     return [f"- {label}: LER first {drift[0]['ler']:.4f} [{drift[0]['lo']:.4f}, {drift[0]['hi']:.4f}] -> last "
             f"{drift[-1]['ler']:.4f} [{drift[-1]['lo']:.4f}, {drift[-1]['hi']:.4f}] "
             f"({nd[0]} shots per window); first-vs-last p = {fl:.2g}; trend p = {pd_:.2g} "
@@ -122,8 +141,13 @@ def main():
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--skip-real", action="store_true")
     ap.add_argument("--out-dir", default=".")
+    ap.add_argument("--force", action="store_true", help="allow overwriting existing outputs in --out-dir")
     a = ap.parse_args()
     os.makedirs(a.out_dir, exist_ok=True)
+    clash = [f for f in ("gate1_ler_simulated.png", "gate1_ler_real.png", "gate1_ler_results.csv", "gate1_ler_summary.md")
+             if os.path.exists(os.path.join(a.out_dir, f))]
+    if clash and not a.force:
+        raise SystemExit(f"refusing to overwrite {clash} in {a.out_dir}; use a new --out-dir or pass --force")
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
