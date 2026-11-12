@@ -1,0 +1,22 @@
+Regression check of ler_comparison.py after adding the fitted (refit_q0/q1/q2, refit_q1_noevents) and controlled (step_q1, slow_q1) scenarios.
+
+1. Existing scenarios are unchanged. iq_generator.py and adaptive_boundary_v5.py were not modified, and the old scenarios still build
+   their data through v5.make_data.
+   Command: python ler_comparison.py --scenarios readout_q1 --seeds 1 --no-detector --out-dir <new folder>
+   Compared with results/gate2/ler_windows.csv (scenario readout_q1, run 0), per window, for the 9 arms that existed then: 387 rows.
+   Result: max |difference in logical errors| = 0, max |difference in misassignment| = 0 (bit-identical).
+   The earlier note that this check would have to be redefined after the generator switch no longer applies: the fitted generator is
+   added alongside the old one, not in place of it.
+
+2. Reference for the new scenarios (one seed, for future regression only; NOT a result to quote).
+   Command: python ler_comparison.py --scenarios refit_q1 step_q1 slow_q1 --seeds 1 --out-dir <new folder>
+   Output stored as results/regression/fitted_controlled_one_seed_windows.csv (seed 200; d=5, physical error 0.001, 1500 shots per window;
+   refit_q1: 169 windows, 336 h at 2 h steps; step_q1 and slow_q1: 43 windows, 168 h at 4 h steps, 1 sigma).
+   A later run of the same command must reproduce this file's errors and misassign columns exactly.
+
+3. Generator tests: python -m pytest tests -q  -> 10 passed (6 event/refit tests copied from the iq-generator branch at commit 40a5777,
+   4 new tests for iq_generator_controlled.py: zero shift is bit-identical to the refit generator without events; a 1 sigma step measures
+   1 sigma and leaves the separation unchanged; the slow ramp is linear; background 0 leaves no stochastic drift).
+
+Copied unchanged from the iq-generator branch (commit 40a5777): iq_generator_refit.py, iq_generator_events.py,
+analysis/refit_results/refit_params.json, analysis/refit_results/refit_summary.md, tests/test_iq_generator_events.py.

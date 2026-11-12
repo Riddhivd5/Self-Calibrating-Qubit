@@ -14,16 +14,34 @@ v5 stops at misassignment and fire rate. This script adds what the poster review
   * detector scoring: onsets caught, false alarms on quiet windows, delay, alarmed fraction, per seed
   * small update batches and shifting |1> share
   * replay of the real IBM snapshots (held-out scoring) through the same loop
-Arms: frozen | periodic_12h/24h/48h | oracle | moment (v1) | EM+pi (eta 0.3) | EM+pi fast (eta 0.9) | gated (v5 alarm)
+Arms: frozen | periodic_12h/24h/48h | oracle | moment (v1) | EM+pi (eta 0.3) | EM+pi fast (eta 0.9) | EM+pi fast, one-step lag |
+gated (v5 alarm)
 Label-free arms see only unlabelled IQ dots and syndrome features. Timeline per step as in v5: the boundary is updated from
 the step's unlabelled stream (the gated arm first measures one alarm window at its old boundary), then a window is measured
-at the updated boundary and decoded.
+at the updated boundary and decoded. That scores a boundary on the same window it was tuned on (offline re-assignment).
+em_pi_fast_lag is the online case: its window is measured at the boundary it had BEFORE this step's data. Quote both.
+
+Drift sources (the scenario class is printed in each summary heading):
+  * stress test : hand-tuned v1.5 profiles q0/q1/q2 at --strength 4 (readout_*, mix*, batch*, both). Far stronger than the
+                  drift measured on the device; kept for continuity and as a worst case.
+  * fitted      : profiles refit on the 149 real snapshots (iq_generator_refit.py): fast jitter plus measured rare events and
+                  a decay tail (refit_q0/q1/q2, refit_q1_noevents). --refit-strength multiplies the stochastic jitter only.
+  * controlled  : a common-mode displacement of known size, in cloud sigma (iq_generator_controlled.py): step_q1 (step at one
+                  third of the run) and slow_q1 (linear ramp reaching --shift-sigma at the end). No other readout drift.
+  * real replay : the IBM snapshots themselves (real_q0/q1/q2).
+  * physical    : readout fixed, physical error ramped (physical); "both" adds the ramp to the stress-test readout drift.
 
 Usage (repo root; needs adaptive_boundary_v5.py, adaptive_boundary.py, drift_framework.py, iq_generator.py,
 real_drift_detector.py, data/ and adaptive_boundary_v5.csv):
-    python ler_comparison.py --scenarios readout_q1 --seeds 8
-Scenarios: readout_q0 readout_q1 readout_q2 mix10 mix50 physical both real_q0 real_q1 real_q2 batch
-Outputs in --out-dir: ler_<scenario>_windows.csv rows are merged into ler_windows.csv; ler_summary.md; ler_<scenario>.png
+    python ler_comparison.py --scenarios readout_q1 --seeds 8 --out-dir results/<new folder>
+The fitted and controlled scenarios also need iq_generator_refit.py, iq_generator_events.py, iq_generator_controlled.py and
+analysis/refit_results/refit_params.json.
+Scenarios: readout_q0 readout_q1 readout_q2 mix10 mix50 physical both real_q0 real_q1 real_q2 batch<N>
+           refit_q0 refit_q1 refit_q2 refit_q1_noevents step_q1 slow_q1
+Flags: --d, --pphys (v5 etas and alarm thresholds were tuned at d=5, p=0.001 and are not retuned); --strength (stress tests);
+       --refit-strength, --refit-hours, --refit-step (fitted); --shift-sigma (controlled); --phys-ramp; --batch-sizes;
+       --no-detector; --force (outputs are never overwritten without it). run_config.json records the command and versions.
+Outputs in --out-dir: ler_windows.csv, ler_summary.md, run_config.json, ler_<scenario>.png
 """
 import argparse
 import csv
@@ -109,6 +127,62 @@ def make_real_data(q, data_dir, rep, n_unl=1500):
     f0, f1 = c0.mean(), c1.mean()
     sig2 = 0.5 * np.mean(np.r_[np.abs(c0 - f0) ** 2, np.abs(c1 - f1) ** 2])
     return dict(f0=f0, f1=f1, sig2=sig2, steps=steps, seed=rep)
+
+
+# ------------------------------------------------------------------ fitted / controlled generators in v5's data format
+def make_data_from(factory, seed, hours=168.0, step=4.0, n_unl=1500, n_eval=3000, n_cal=2000, n_pool=4000):
+    """Same construction and draw order as v5.make_data, for any generator: factory() must return a NEW generator each call."""
+    gen, genp = factory(), factory()
+    iq, st = gen.generate_shots(n_shots=20000, t_hours=0)
+    f0, f1 = iq[st == 0].mean(), iq[st == 1].mean()
+    sig2 = 0.5 * np.mean(np.r_[np.abs(iq[st == 0] - f0) ** 2, np.abs(iq[st == 1] - f1) ** 2])
+    steps = []
+    for t in np.arange(0, hours + 1e-9, step):
+        steps.append(dict(t=float(t),
+                          unl={p1: gen.generate_shots(n_shots=n_unl, t_hours=t, p_state1=p1)[0] for p1 in v5.P1S},
+                          ev=gen.generate_shots(n_shots=n_eval, t_hours=t, p_state1=0.5),
+                          cal=gen.generate_shots(n_shots=n_cal, t_hours=t),
+                          pool0=genp.generate_shots(n_shots=n_pool, t_hours=t, p_state1=0.0)[0],
+                          pool1=genp.generate_shots(n_shots=n_pool, t_hours=t, p_state1=1.0)[0]))
+    return dict(f0=f0, f1=f1, sig2=sig2, steps=steps, seed=seed)
+
+
+def build_data(cfg, seed, rep, a):
+    kind = cfg["kind"]
+    if kind == "gen":
+        return v5.make_data(cfg["prof"], cfg["strength"], seed, fixed_t=cfg.get("fixed_t"), n_unl=cfg.get("n_unl", 1500))
+    if kind == "real":
+        return make_real_data(cfg["q"], a.data_dir, rep, n_unl=cfg.get("n_unl", 1500))
+    if kind == "refit":
+        from iq_generator_refit import make_generator
+        return make_data_from(lambda: make_generator(cfg["q"], seed=seed, events=cfg["events"], strength=a.refit_strength),
+                              seed, hours=a.refit_hours, step=a.refit_step)
+    if kind == "controlled":
+        from iq_generator_controlled import make_controlled
+        hours = 168.0
+        return make_data_from(lambda: make_controlled(cfg["q"], seed=seed, kind=cfg["shape"], shift_sigma=a.shift_sigma,
+                                                      t_on=hours / 3, hours=hours), seed, hours=hours, step=4.0)
+    raise ValueError(kind)
+
+
+CLASS = {"gen": "STRESS TEST: hand-tuned v1.5 profile, far stronger than the drift measured on the device",
+         "refit": "FITTED: profile refit on the 149 real snapshots",
+         "controlled": "CONTROLLED: imposed common-mode displacement, no other readout drift",
+         "real": "REAL REPLAY: the IBM snapshots"}
+
+
+def scenario_class(name, cfg, a):
+    if name == "physical":
+        return "PHYSICAL ONLY: readout held at its calibration-time state, physical error ramped"
+    c = CLASS[cfg["kind"]]
+    if cfg["kind"] == "gen":
+        c += f" (profile {cfg['prof']}, strength x{cfg['strength']:g}" + (", plus a physical-error ramp)" if name == "both" else ")")
+    if cfg["kind"] == "refit":
+        c += f" (q{cfg['q'][-1]}, jitter x{a.refit_strength:g}, events {'on' if cfg['events'] else 'off'}, {a.refit_hours:g} h at {a.refit_step:g} h steps)"
+    if cfg["kind"] == "controlled":
+        c += (f" ({cfg['shape']}: {a.shift_sigma:g} sigma along the centroid axis, "
+              + ("applied at one third of the run)" if cfg["shape"] == "step" else "reached linearly at the end of the run)"))
+    return c
 
 
 # ------------------------------------------------------------------ one closed-loop run
@@ -200,6 +274,11 @@ def scenarios(a):
         S[f"real_q{q}"] = dict(kind="real", q=q, p1=0.3, phys=flat)
     for nb in a.batch_sizes:
         S[f"batch{nb}"] = dict(kind="gen", prof="q1", strength=a.strength, p1=0.3, phys=flat, n_unl=nb)
+    for q in ("q0", "q1", "q2"):
+        S[f"refit_{q}"] = dict(kind="refit", q=q, events=True, p1=0.3, phys=flat)
+    S["refit_q1_noevents"] = dict(kind="refit", q="q1", events=False, p1=0.3, phys=flat)
+    S["step_q1"] = dict(kind="controlled", q="q1", shape="step", p1=0.3, phys=flat)
+    S["slow_q1"] = dict(kind="controlled", q="q1", shape="slow", p1=0.3, phys=flat)
     return S
 
 
@@ -289,7 +368,7 @@ def boot_samples(runs, shared_traj, rng, boot=2000):
 
 def summarise(name, cfg, runs, dstats, a, rng):
     shared = cfg["kind"] == "real" or len(runs) < 2
-    L = [f"### {name}", f"{len(runs)} run(s); {len(runs[0]['_t'])} windows per run, {v5.WIN} shots per window, d={v5.D}, "
+    L = [f"### {name}", f"{scenario_class(name, cfg, a)}.", "", f"{len(runs)} run(s); {len(runs[0]['_t'])} windows per run, {v5.WIN} shots per window, d={v5.D}, "
          f"physical error {v5.P_PHYS}" + (f" ramped x{a.phys_ramp:g}" if cfg["phys"].__name__ == "<lambda>" and name in ("physical", "both") else "") + ".", "",
          "| arm | pooled LER [95% Wilson CI, counts shots only] | [95% CI resampling " + ("window blocks, one shared trajectory" if shared else "runs") + "] | shots | mean accuracy | gap recovered, pooled [95% bootstrap CI over runs] | median per run [IQR] | runs >= 0.8 |",
          "|---|---|---|---|---|---|---|---|"]
@@ -313,12 +392,12 @@ def summarise(name, cfg, runs, dstats, a, rng):
     if dstats:
         on = sum(d["onsets"] for d in dstats); ca = sum(d["caught"] for d in dstats)
         dl = [x for d in dstats for x in d["delays"]]
-        L.append(f"detector (v5 alarm on the frozen boundary, per window of {v5.WIN} shots): onsets caught within 12 h {ca}/{on}; "
+        L.append(f"detector (v5 alarm on the frozen boundary, per window of {v5.WIN} shots): onsets caught within 4 windows {ca}/{on}; "
                  f"event windows alarmed {sum(d['ev_alarmed'] for d in dstats)}/{sum(d['ev_n'] for d in dstats)}; "
                  f"false alarms on quiet windows {sum(d['q_false'] for d in dstats)}/{sum(d['q_n'] for d in dstats)}; "
                  f"delay median {np.median(dl) if dl else float('nan'):.0f} window(s); the alarm decides at the end of a window, so latency is at most "
                  f"{((np.median(dl) if dl else float('nan')) + 1) * v5.WIN:.0f} shots = {((np.median(dl) if dl else float('nan')) + 1) * v5.WIN * v5.D:.0f} syndrome rounds "
-                 f"(d={v5.D}); delay inside a window is not resolved (one window = 4 h in simulation, one snapshot in real data)")
+                 f"(d={v5.D}); delay inside a window is not resolved (one window per simulated time step or per real snapshot)")
     if cfg["kind"] == "real":
         L.append("")
         L.append("Real-data scenario: one 15.6-day trajectory replayed repeatedly (runs differ only in which unlabelled IQ points are drawn). "
@@ -369,6 +448,10 @@ def main():
     ap.add_argument("--seeds", type=int, default=8)
     ap.add_argument("--strength", type=float, default=4.0)
     ap.add_argument("--phys-ramp", type=float, default=3.0)
+    ap.add_argument("--refit-strength", type=float, default=1.0, help="fitted scenarios: multiplier on the stochastic jitter only (1 = as fitted; events unchanged)")
+    ap.add_argument("--refit-hours", type=float, default=336.0, help="fitted scenarios: run length in hours")
+    ap.add_argument("--refit-step", type=float, default=2.0, help="fitted scenarios: hours between windows (real median gap is 2.56 h)")
+    ap.add_argument("--shift-sigma", type=float, default=1.0, help="controlled scenarios: displacement in along-axis cloud sigma")
     ap.add_argument("--batch-sizes", nargs="*", type=int, default=[100, 300])
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--out-dir", default=".")
@@ -404,10 +487,7 @@ def main():
         runs, dstats = [], []
         for k in range(a.seeds):
             seed = TEST0 + k
-            if cfg["kind"] == "gen":
-                data = v5.make_data(cfg["prof"], cfg["strength"], seed, fixed_t=cfg.get("fixed_t"), n_unl=cfg.get("n_unl", 1500))
-            else:
-                data = make_real_data(cfg["q"], a.data_dir, k, n_unl=cfg.get("n_unl", 1500))
+            data = build_data(cfg, seed, k, a)
             matcher = design_matcher(data)
             r = run(data, cfg["p1"], hw0, hws, matcher, etas, cfg["phys"], seed)
             runs.append(r)
