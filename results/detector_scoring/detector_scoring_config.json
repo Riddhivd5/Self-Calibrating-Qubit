@@ -1,0 +1,44 @@
+{
+ "args": {
+  "out_dir": "/tmp/scratch/out/detector_scoring",
+  "force": false,
+  "data_dir": "data",
+  "qubit": "q1",
+  "seeds": 20,
+  "seed0": 300,
+  "stream": 40,
+  "windows": [
+   250,
+   500,
+   1000,
+   1500
+  ],
+  "shifts": [
+   0.1,
+   0.15,
+   0.25,
+   0.35,
+   0.5,
+   1.0
+  ],
+  "phys": [
+   1.5,
+   2.0,
+   3.0
+  ],
+  "n_pool": 40000,
+  "traj_window": 1500,
+  "traj_seeds": 8,
+  "real_reps": 8,
+  "refit_hours": 336.0,
+  "refit_step": 2.0,
+  "d": 5,
+  "pphys": 0.001,
+  "skip_b": false
+ },
+ "cmd": "detector_scoring.py --out-dir /tmp/scratch/out/detector_scoring",
+ "time": "2026-11-12 13:00:25",
+ "numpy": "2.5.3",
+ "stim": "1.16.0",
+ "pymatching": "2.4.0"
+}

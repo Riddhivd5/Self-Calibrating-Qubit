@@ -397,7 +397,9 @@ def summarise(name, cfg, runs, dstats, a, rng):
                  f"false alarms on quiet windows {sum(d['q_false'] for d in dstats)}/{sum(d['q_n'] for d in dstats)}; "
                  f"delay median {np.median(dl) if dl else float('nan'):.0f} window(s); the alarm decides at the end of a window, so latency is at most "
                  f"{((np.median(dl) if dl else float('nan')) + 1) * v5.WIN:.0f} shots = {((np.median(dl) if dl else float('nan')) + 1) * v5.WIN * v5.D:.0f} syndrome rounds "
-                 f"(d={v5.D}); delay inside a window is not resolved (one window per simulated time step or per real snapshot)")
+                 f"(d={v5.D}); delay inside a window is not resolved (one window per simulated time step or per real snapshot). "
+                 "Event = flip rate above 2x the starting value, quiet = below 1.25x; windows in between are NOT scored here. "
+                 "detector_scoring.py scores every window, with the truth defined by the injected drift, and sweeps the window size")
     if cfg["kind"] == "real":
         L.append("")
         L.append("Real-data scenario: one 15.6-day trajectory replayed repeatedly (runs differ only in which unlabelled IQ points are drawn). "
