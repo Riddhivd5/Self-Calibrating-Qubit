@@ -1,0 +1,33 @@
+{
+ "args": {
+  "out_dir": "/tmp/scratch/out/attribution_heldout",
+  "force": false,
+  "d": 5,
+  "pphys": 0.001,
+  "windows": [
+   250,
+   1500
+  ],
+  "train_levels": [
+   0.4,
+   1.0,
+   2.0
+  ],
+  "test_levels": [
+   0.3,
+   0.6,
+   1.5,
+   2.5
+  ],
+  "n_win": 150,
+  "tune_shots": 60000,
+  "tune_iters": 13,
+  "boot": 1000,
+  "null": 200
+ },
+ "cmd": "attribution_heldout.py --out-dir /tmp/scratch/out/attribution_heldout",
+ "time": "2026-11-12 14:25:33",
+ "numpy": "2.5.3",
+ "stim": "1.16.0",
+ "sklearn": "1.9.1"
+}
