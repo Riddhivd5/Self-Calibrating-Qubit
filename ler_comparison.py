@@ -20,6 +20,8 @@ Label-free arms see only unlabelled IQ dots and syndrome features. Timeline per 
 the step's unlabelled stream (the gated arm first measures one alarm window at its old boundary), then a window is measured
 at the updated boundary and decoded. That scores a boundary on the same window it was tuned on (offline re-assignment).
 em_pi_fast_lag is the online case: its window is measured at the boundary it had BEFORE this step's data. Quote both.
+em_pi_lag and gated_v5_lag are the same one-step-lag measurement for the fixed-eta and the gated policy, so the three policies
+(always slow, always fast, gated) can be compared online.
 
 Drift sources (the scenario class is printed in each summary heading):
   * stress test : hand-tuned v1.5 profiles q0/q1/q2 at --strength 4 (readout_*, mix*, batch*, both). Far stronger than the
@@ -30,6 +32,10 @@ Drift sources (the scenario class is printed in each summary heading):
                   third of the run) and slow_q1 (linear ramp reaching --shift-sigma at the end). No other readout drift.
   * real replay : the IBM snapshots themselves (real_q0/q1/q2).
   * physical    : readout fixed, physical error ramped (physical); "both" adds the ramp to the stress-test readout drift.
+  * gating tests: quiet_q1 (controlled generator, no drift at all), physical_quiet_q1 (the same with the physical-error ramp),
+                  mixshift_quiet_q1 and mixshift_step_q1 (the |1> share of the
+                  unlabelled stream changes 0.3 -> 0.1 -> 0.5 by thirds of the run while pi stays at its first estimate).
+                  --n-unl sets the number of unlabelled IQ points per update for the fitted and controlled scenarios.
 
 Usage (repo root; needs adaptive_boundary_v5.py, adaptive_boundary.py, drift_framework.py, iq_generator.py,
 real_drift_detector.py, data/ and adaptive_boundary_v5.csv):
@@ -37,9 +43,10 @@ real_drift_detector.py, data/ and adaptive_boundary_v5.csv):
 The fitted and controlled scenarios also need iq_generator_refit.py, iq_generator_events.py, iq_generator_controlled.py and
 analysis/refit_results/refit_params.json.
 Scenarios: readout_q0 readout_q1 readout_q2 mix10 mix50 physical both real_q0 real_q1 real_q2 batch<N>
-           refit_q0 refit_q1 refit_q2 refit_q1_noevents step_q1 slow_q1
+           refit_q0 refit_q1 refit_q2 refit_q1_noevents step_q1 slow_q1 quiet_q1 mixshift_quiet_q1 mixshift_step_q1
+           physical_quiet_q1
 Flags: --d, --pphys (v5 etas and alarm thresholds were tuned at d=5, p=0.001 and are not retuned); --strength (stress tests);
-       --refit-strength, --refit-hours, --refit-step (fitted); --shift-sigma (controlled); --phys-ramp; --batch-sizes;
+       --refit-strength, --refit-hours, --refit-step (fitted); --shift-sigma (controlled); --n-unl; --phys-ramp; --batch-sizes;
        --no-detector; --force (outputs are never overwritten without it). run_config.json records the command and versions.
 Outputs in --out-dir: ler_windows.csv, ler_summary.md, run_config.json, ler_<scenario>.png
 """
@@ -58,7 +65,8 @@ import adaptive_boundary_v5 as v5
 from adaptive_boundary import classify, misassign
 from drift_framework import build_circuit
 
-ARMS = ["frozen", "periodic_12h", "periodic_24h", "periodic_48h", "oracle", "moment_v1", "em_pi", "em_pi_fast", "em_pi_fast_lag", "gated_v5"]
+ARMS = ["frozen", "periodic_12h", "periodic_24h", "periodic_48h", "oracle", "moment_v1", "em_pi", "em_pi_fast", "em_pi_fast_lag", "gated_v5",
+        "em_pi_lag", "gated_v5_lag"]
 PERIODS = {"periodic_12h": 12.0, "periodic_24h": 24.0, "periodic_48h": 48.0}
 TEST0 = 200  # held-out seeds, same as v5
 GAP_MIN = 0.0005  # a frozen-vs-oracle gap below 0.05 percentage points of LER is treated as zero
@@ -156,12 +164,13 @@ def build_data(cfg, seed, rep, a):
     if kind == "refit":
         from iq_generator_refit import make_generator
         return make_data_from(lambda: make_generator(cfg["q"], seed=seed, events=cfg["events"], strength=a.refit_strength),
-                              seed, hours=a.refit_hours, step=a.refit_step)
+                              seed, hours=a.refit_hours, step=a.refit_step, n_unl=a.n_unl)
     if kind == "controlled":
         from iq_generator_controlled import make_controlled
         hours = 168.0
-        return make_data_from(lambda: make_controlled(cfg["q"], seed=seed, kind=cfg["shape"], shift_sigma=a.shift_sigma,
-                                                      t_on=hours / 3, hours=hours), seed, hours=hours, step=4.0)
+        shift = cfg.get("shift", a.shift_sigma)
+        return make_data_from(lambda: make_controlled(cfg["q"], seed=seed, kind=cfg["shape"], shift_sigma=shift,
+                                                      t_on=hours / 3, hours=hours), seed, hours=hours, step=4.0, n_unl=a.n_unl)
     raise ValueError(kind)
 
 
@@ -174,14 +183,23 @@ CLASS = {"gen": "STRESS TEST: hand-tuned v1.5 profile, far stronger than the dri
 def scenario_class(name, cfg, a):
     if name == "physical":
         return "PHYSICAL ONLY: readout held at its calibration-time state, physical error ramped"
+    if name == "physical_quiet_q1":
+        return (f"PHYSICAL ONLY: controlled generator with no readout drift, physical error ramped x{a.phys_ramp:g}"
+                + (f"; {a.n_unl} unlabelled IQ points per update" if a.n_unl != 1500 else ""))
     c = CLASS[cfg["kind"]]
     if cfg["kind"] == "gen":
         c += f" (profile {cfg['prof']}, strength x{cfg['strength']:g}" + (", plus a physical-error ramp)" if name == "both" else ")")
     if cfg["kind"] == "refit":
         c += f" (q{cfg['q'][-1]}, jitter x{a.refit_strength:g}, events {'on' if cfg['events'] else 'off'}, {a.refit_hours:g} h at {a.refit_step:g} h steps)"
     if cfg["kind"] == "controlled":
-        c += (f" ({cfg['shape']}: {a.shift_sigma:g} sigma along the centroid axis, "
-              + ("applied at one third of the run)" if cfg["shape"] == "step" else "reached linearly at the end of the run)"))
+        sh = cfg.get("shift", a.shift_sigma)
+        c = (c if sh else "QUIET: controlled generator with no drift at all") + (
+            "" if not sh else f" ({cfg['shape']}: {sh:g} sigma along the centroid axis, "
+            + ("applied at one third of the run)" if cfg["shape"] == "step" else "reached linearly at the end of the run)"))
+    if callable(cfg["p1"]):
+        c += "; |1> share of the unlabelled stream changes 0.3 -> 0.1 -> 0.5 by thirds of the run, pi fixed at its first estimate"
+    if cfg["kind"] in ("refit", "controlled") and a.n_unl != 1500:
+        c += f"; {a.n_unl} unlabelled IQ points per update"
     return c
 
 
@@ -190,7 +208,9 @@ def run(data, p1, hw0, hws, matcher, etas, phys_fn, seed):
     """Returns {arm: dict(k, n, p, flip, alarm)} per step."""
     f0, f1, sig2 = data["f0"], data["f1"], data["sig2"]
     w0 = f1 - f0
-    pi = float(np.clip(classify(data["steps"][0]["unl"][p1], f0, f1).mean(), 0.02, 0.98))
+    p1_at = p1 if callable(p1) else (lambda i, n: p1)
+    n_all = len(data["steps"])
+    pi = float(np.clip(classify(data["steps"][0]["unl"][p1_at(0, n_all)], f0, f1).mean(), 0.02, 0.98))
     ctrl = v5.ControllerV5(v5.reference_windows(hw0, data, seed))
     S = {m: [f0, f1] for m in ARMS}
     mid, last_cal = (f0 + f1) / 2, {m: 0.0 for m in PERIODS}
@@ -199,7 +219,7 @@ def run(data, p1, hw0, hws, matcher, etas, phys_fn, seed):
     n_recal = {m: 0 for m in PERIODS}
     cal_shots = 0
     for si, sd in enumerate(data["steps"]):
-        t, iq = sd["t"], sd["unl"][p1]
+        t, iq = sd["t"], sd["unl"][p1_at(si, n_all)]
         ciq, cst = sd["cal"]
         eiq, est = sd["ev"]
         hw = hws(phys_fn(si, n_steps))
@@ -215,6 +235,8 @@ def run(data, p1, hw0, hws, matcher, etas, phys_fn, seed):
         for name, eta in (("em_pi", v5.ETA_FIXED), ("em_pi_fast", v5.ETA_FAST), ("em_pi_fast_lag", v5.ETA_FAST), ("gated_v5", None)):
             if name == "em_pi_fast_lag":  # one-step lag: measure at the boundary from BEFORE this step's data
                 MB[name] = list(S[name])
+            if name in ("em_pi", "gated_v5"):  # the same policies measured with one-step lag
+                MB[name + "_lag"] = list(S[name])
             if name == "gated_v5":  # one alarm window measured at the OLD boundary, features only
                 smp_a = hw.circ.compile_sampler(seed=base + 500_000)
                 rg_a = np.random.default_rng(base + 500_000)
@@ -226,6 +248,7 @@ def run(data, p1, hw0, hws, matcher, etas, phys_fn, seed):
                 eta = etas[1] if a else etas[0]
             n0, n1 = v5.em_step(iq, S[name][0], S[name][1], pi, sig2)
             S[name] = [(1 - eta) * S[name][0] + eta * n0, (1 - eta) * S[name][1] + eta * n1]
+        S["em_pi_lag"], S["gated_v5_lag"] = S["em_pi"], S["gated_v5"]
         # --- labelled arms
         o0, o1 = ciq[cst == 0].mean(), ciq[cst == 1].mean()
         for m, per in PERIODS.items():
@@ -279,6 +302,11 @@ def scenarios(a):
     S["refit_q1_noevents"] = dict(kind="refit", q="q1", events=False, p1=0.3, phys=flat)
     S["step_q1"] = dict(kind="controlled", q="q1", shape="step", p1=0.3, phys=flat)
     S["slow_q1"] = dict(kind="controlled", q="q1", shape="slow", p1=0.3, phys=flat)
+    mix = lambda i, n: (0.3, 0.1, 0.5)[min(3 * i // n, 2)]
+    S["quiet_q1"] = dict(kind="controlled", q="q1", shape="step", shift=0.0, p1=0.3, phys=flat)
+    S["mixshift_quiet_q1"] = dict(kind="controlled", q="q1", shape="step", shift=0.0, p1=mix, phys=flat)
+    S["mixshift_step_q1"] = dict(kind="controlled", q="q1", shape="step", p1=mix, phys=flat)
+    S["physical_quiet_q1"] = dict(kind="controlled", q="q1", shape="step", shift=0.0, p1=0.3, phys=ramp)
     return S
 
 
@@ -407,7 +435,8 @@ def summarise(name, cfg, runs, dstats, a, rng):
     L.append("")
     L.append("Paired LER differences (percentage points, 95% CI from the same resamples; negative = first arm better):")
     for x, y in (("em_pi_fast", "frozen"), ("em_pi_fast", "oracle"), ("gated_v5", "em_pi_fast"), ("em_pi_fast_lag", "em_pi_fast"),
-                 ("periodic_24h", "em_pi_fast"), ("em_pi", "em_pi_fast")):
+                 ("periodic_24h", "em_pi_fast"), ("em_pi", "em_pi_fast"), ("gated_v5", "em_pi"),
+                 ("gated_v5_lag", "em_pi_fast_lag"), ("gated_v5_lag", "em_pi_lag"), ("em_pi_lag", "em_pi_fast_lag")):
         d = 100 * (bs[x] - bs[y]); L.append(f"- {x} - {y}: {100 * (np.mean(bs[x]) - np.mean(bs[y])):+.3f} [{np.percentile(d, 2.5):+.3f}, {np.percentile(d, 97.5):+.3f}]")
     nst = len(runs[0]["_t"]); cs = runs[0]["_cal_shots"]
     L.append("")
@@ -454,6 +483,7 @@ def main():
     ap.add_argument("--refit-hours", type=float, default=336.0, help="fitted scenarios: run length in hours")
     ap.add_argument("--refit-step", type=float, default=2.0, help="fitted scenarios: hours between windows (real median gap is 2.56 h)")
     ap.add_argument("--shift-sigma", type=float, default=1.0, help="controlled scenarios: displacement in along-axis cloud sigma")
+    ap.add_argument("--n-unl", type=int, default=1500, help="fitted and controlled scenarios: unlabelled IQ points per update")
     ap.add_argument("--batch-sizes", nargs="*", type=int, default=[100, 300])
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--out-dir", default=".")
@@ -499,7 +529,7 @@ def main():
                 for i in range(len(r["_t"])):
                     rows.append(dict(scenario=name, d=a.d, pphys=a.pphys, run=k, arm=m, step=i, t=r["_t"][i], errors=int(r[m]["k"][i]),
                                      shots=v5.WIN, ler=r[m]["k"][i] / v5.WIN, misassign=r[m]["p"][i], flip=r[m]["flip"][i],
-                                     gated_alarm=int(r["_alarm"][i]) if m == "gated_v5" else ""))
+                                     gated_alarm=int(r["_alarm"][i]) if m in ("gated_v5", "gated_v5_lag") else ""))
             print(f"  {name} run {k + 1}/{a.seeds} done", flush=True)
         text = summarise(name, cfg, runs, dstats, a, rng)
         print(text, flush=True)
