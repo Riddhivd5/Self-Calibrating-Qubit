@@ -1,0 +1,112 @@
+# Real-snapshot checks (149 snapshots, backend ibm_fez, 1000 shots per state per qubit)
+
+## 1. Acquisition timing
+- First 2026-09-11T08:58:08 UTC, last 2026-09-27T00:12:49 UTC, span 375.2 h (15.6 d).
+- Gaps between consecutive snapshot timestamps: median 2.56 h, min 0.15 h, max 16.00 h; 22 gaps under 1 h, 9 over 6 h.
+  - gap 0-1 h: 22
+  - gap 1-2 h: 47
+  - gap 2-3 h: 46
+  - gap 3-5 h: 24
+  - gap 5-9 h: 5
+  - gap 9-... h: 4
+- last_update carries UTC offset(s) ['+05:30']; parsed with the offset, snapshot minus last_update is median 0.61 h (5th-95th percentile 0.02 to 14.98 h).
+- last_update is LATER than the snapshot timestamp in 7 snapshots (by 0.48, 14.23, 10.45, 0.22, 14.62, 5.41, 5.88 h).
+  The snapshot timestamp is taken when the collection script starts; last_update comes from job.properties() and so is
+  no later than the moment the job ran. These jobs therefore ran at least that long after their timestamp (queueing).
+  - snapshot 18 (2026-09-14T13:30): ran >= 0.48 h late; gap to the next snapshot timestamp 8.00 h
+  - snapshot 24 (2026-09-15T16:13): ran >= 14.23 h late; gap to the next snapshot timestamp 16.00 h
+  - snapshot 27 (2026-09-16T12:12): ran >= 10.45 h late; gap to the next snapshot timestamp 12.00 h
+  - snapshot 31 (2026-09-17T05:30): ran >= 0.22 h late; gap to the next snapshot timestamp 2.71 h
+  - snapshot 34 (2026-09-17T12:12): ran >= 14.62 h late; gap to the next snapshot timestamp 16.00 h
+  - snapshot 39 (2026-09-18T12:12): ran >= 5.41 h late; gap to the next snapshot timestamp 8.00 h
+  - snapshot 107 (2026-09-23T20:12): ran >= 5.88 h late; gap to the next snapshot timestamp 8.00 h
+- Using max(timestamp, last_update) as a lower bound on the acquisition time: order preserved True; gaps median 2.34 h, min 0.15 h, max 17.33 h; span 375.2 h.
+- last_update changes at 119 of 148 steps, so it cannot mark recalibrations of a given qubit's readout.
+
+## 2. Do events and centroid jumps line up with IBM calibration changes?
+### q0
+- IBM-reported readout_error changes at 46 of 148 steps (used as this qubit's recalibration marker).
+- Events (frozen-boundary error > 0.0345): 3 snapshots in 1 onsets. Onsets at a step where the reported readout_error changed: 1 of 1 (chance rate 0.31).
+- Centroid jump between consecutive snapshots (cloud sigma; shot-noise scale ~0.045): median 0.142 at calibration changes vs 0.100 elsewhere; one-sided Mann-Whitney p = 0.00045.
+  Confound: steps with a calibration change follow longer gaps (median 2.71 h vs 1.29 h) and jumps grow with gap (rank correlation +0.29).
+  Permutation test with calibration-change labels shuffled within gap-length quartiles: p = 0.0088. Jumps over 0.5 sigma: 3, of which at a calibration change: 3.
+- |change in frozen-boundary error| at calibration changes vs elsewhere: median 0.0037 vs 0.0033; p = 0.13.
+- Five largest centroid jumps: 1.21 sigma at 44.5 h (IBM value changed: yes); 1.01 sigma at 8.5 h (IBM value changed: yes); 0.71 sigma at 36.5 h (IBM value changed: yes); 0.50 sigma at 52.5 h (IBM value changed: yes); 0.39 sigma at 344.5 h (IBM value changed: no)
+- Rank correlation of IBM-reported readout_error with frozen-boundary error: -0.03 (p = 7.1e-01).
+- Shot noise. Baseline error 0.0173 = 34 of 2000 points; event threshold 0.0345 = more than 69 of 2000.
+  - if the true error were constant at the baseline rate (0.0173): P(one snapshot crosses) = 5.37e-08, expected crossings in 138 scored snapshots = 0.000; observed 3.
+  - if the true error were constant at the mean rate of scored snapshots (0.0227): P(one snapshot crosses) = 3.57e-04, expected crossings in 138 scored snapshots = 0.049; observed 3.
+  - if the true error were constant at the median rate of scored snapshots (0.0220): P(one snapshot crosses) = 1.53e-04, expected crossings in 138 scored snapshots = 0.021; observed 3.
+  - dispersion of the per-snapshot error count (variance / binomial variance): 3.04; chi-square p = 7.2e-30 (1.0 would be pure shot noise around a constant rate).
+  - same with the event snapshots removed: 1.81 (p = 3.3e-08).
+  - threshold sensitivity (events / onsets): 1.5x: 30/15, 2.0x: 3/1, 2.5x: 2/1, 3.0x: 1/1, 4.0x: 0/0
+  - per event snapshot: hour, frozen-boundary errors/2000 (binomial p vs baseline, Bonferroni over scored), re-centred errors/2000, e0/e1 per 1000, centroid shift (sigma), gain, rotation (deg)
+    -   44.5 h:  76 (p_adj 6.6e-08), re-centred  75, e0/e1 30/46, shift 1.32, gain 0.733, rot -14.63
+    -   48.5 h:  96 (p_adj 3.6e-16), re-centred  93, e0/e1 40/56, shift 1.32, gain 0.707, rot -12.14
+    -   52.5 h: 111 (p_adj 1.3e-23), re-centred 101, e0/e1 48/63, shift 1.15, gain 0.714, rot +0.75
+  - re-centred (own-centroid) error: median 0.0205; in event snapshots median 0.0465. Frozen minus re-centred, summed over event snapshots: 14 of 283 misassigned points are removed by re-centring.
+- Centroid shift from snapshot 0 (cloud sigma): median 1.05, max 1.32; gain range 0.707 to 1.011; rotation range -14.63 to +11.12 deg.
+
+### q1
+- IBM-reported readout_error changes at 47 of 148 steps (used as this qubit's recalibration marker).
+- Events (frozen-boundary error > 0.0295): 17 snapshots in 8 onsets. Onsets at a step where the reported readout_error changed: 3 of 8 (chance rate 0.32).
+- Centroid jump between consecutive snapshots (cloud sigma; shot-noise scale ~0.045): median 0.254 at calibration changes vs 0.150 elsewhere; one-sided Mann-Whitney p = 0.044.
+  Confound: steps with a calibration change follow longer gaps (median 2.71 h vs 1.29 h) and jumps grow with gap (rank correlation +0.22).
+  Permutation test with calibration-change labels shuffled within gap-length quartiles: p = 0.2419. Jumps over 0.5 sigma: 27, of which at a calibration change: 12.
+- |change in frozen-boundary error| at calibration changes vs elsewhere: median 0.0060 vs 0.0045; p = 0.032.
+- Five largest centroid jumps: 1.46 sigma at 316.7 h (IBM value changed: no); 1.23 sigma at 292.5 h (IBM value changed: no); 1.17 sigma at 144.5 h (IBM value changed: no); 1.16 sigma at 143.2 h (IBM value changed: no); 1.08 sigma at 147.2 h (IBM value changed: yes)
+- Rank correlation of IBM-reported readout_error with frozen-boundary error: +0.10 (p = 2.4e-01).
+- Shot noise. Baseline error 0.0147 = 30 of 2000 points; event threshold 0.0295 = more than 59 of 2000.
+  - if the true error were constant at the baseline rate (0.0147): P(one snapshot crosses) = 4.33e-07, expected crossings in 138 scored snapshots = 0.000; observed 17.
+  - if the true error were constant at the mean rate of scored snapshots (0.0229): P(one snapshot crosses) = 2.44e-02, expected crossings in 138 scored snapshots = 3.372; observed 17.
+  - if the true error were constant at the median rate of scored snapshots (0.0190): P(one snapshot crosses) = 5.21e-04, expected crossings in 138 scored snapshots = 0.072; observed 17.
+  - dispersion of the per-snapshot error count (variance / binomial variance): 21.49; chi-square p = 0.0e+00 (1.0 would be pure shot noise around a constant rate).
+  - same with the event snapshots removed: 2.32 (p = 1.3e-14).
+  - threshold sensitivity (events / onsets): 1.5x: 38/17, 2.0x: 17/8, 2.5x: 15/8, 3.0x: 9/8, 4.0x: 5/5
+  - per event snapshot: hour, frozen-boundary errors/2000 (binomial p vs baseline, Bonferroni over scored), re-centred errors/2000, e0/e1 per 1000, centroid shift (sigma), gain, rotation (deg)
+    -   48.5 h: 216 (p_adj 8.5e-110), re-centred 213, e0/e1 126/90, shift 1.02, gain 0.704, rot +2.85
+    -   64.5 h:  90 (p_adj 1.6e-17), re-centred  70, e0/e1 55/35, shift 0.66, gain 0.956, rot -8.86
+    -  139.2 h:  83 (p_adj 4.0e-14), re-centred  68, e0/e1 50/33, shift 1.18, gain 0.969, rot +25.82
+    -  140.5 h:  98 (p_adj 1.1e-21), re-centred  63, e0/e1 72/26, shift 1.19, gain 0.974, rot +24.27
+    -  143.2 h: 232 (p_adj 1.3e-124), re-centred 153, e0/e1 153/79, shift 2.33, gain 0.891, rot +47.18
+    -  144.5 h:  80 (p_adj 9.4e-13), re-centred  61, e0/e1 56/24, shift 1.17, gain 0.970, rot +25.68
+    -  248.7 h: 130 (p_adj 3.8e-41), re-centred 117, e0/e1 81/49, shift 0.81, gain 0.902, rot -12.78
+    -  264.5 h:  68 (p_adj 9.1e-08), re-centred  68, e0/e1 27/41, shift 0.08, gain 0.970, rot -0.12
+    -  264.7 h: 153 (p_adj 2.0e-57), re-centred 145, e0/e1 83/70, shift 0.98, gain 0.869, rot -20.05
+    -  291.2 h:  69 (p_adj 3.8e-08), re-centred  70, e0/e1 25/44, shift 0.60, gain 0.910, rot +10.93
+    -  292.5 h:  86 (p_adj 1.5e-15), re-centred  73, e0/e1 53/33, shift 0.80, gain 0.959, rot -17.26
+    -  292.7 h: 142 (p_adj 2.0e-49), re-centred 126, e0/e1 86/56, shift 0.81, gain 0.831, rot -15.26
+    -  295.2 h:  82 (p_adj 1.2e-13), re-centred  76, e0/e1 43/39, shift 0.57, gain 0.929, rot -11.79
+    -  315.2 h:  85 (p_adj 4.5e-15), re-centred  67, e0/e1 50/35, shift 0.57, gain 0.953, rot -12.61
+    -  316.7 h: 112 (p_adj 1.1e-29), re-centred 106, e0/e1 38/74, shift 1.08, gain 0.870, rot +21.00
+    -  348.5 h:  94 (p_adj 1.4e-19), re-centred  76, e0/e1 55/39, shift 0.56, gain 0.976, rot -7.09
+    -  348.7 h:  76 (p_adj 5.4e-11), re-centred  68, e0/e1 44/32, shift 0.64, gain 0.972, rot -10.67
+  - re-centred (own-centroid) error: median 0.0180; in event snapshots median 0.0365. Frozen minus re-centred, summed over event snapshots: 276 of 1896 misassigned points are removed by re-centring.
+- Centroid shift from snapshot 0 (cloud sigma): median 0.23, max 2.33; gain range 0.704 to 1.052; rotation range -20.05 to +47.18 deg.
+
+### q2
+- IBM-reported readout_error changes at 46 of 148 steps (used as this qubit's recalibration marker).
+- Events (frozen-boundary error > 0.0100): 5 snapshots in 4 onsets. Onsets at a step where the reported readout_error changed: 0 of 4 (chance rate 0.31).
+- Centroid jump between consecutive snapshots (cloud sigma; shot-noise scale ~0.045): median 0.203 at calibration changes vs 0.119 elsewhere; one-sided Mann-Whitney p = 1.7e-05.
+  Confound: steps with a calibration change follow longer gaps (median 2.71 h vs 1.29 h) and jumps grow with gap (rank correlation +0.41).
+  Permutation test with calibration-change labels shuffled within gap-length quartiles: p = 0.0025. Jumps over 0.5 sigma: 6, of which at a calibration change: 3.
+- |change in frozen-boundary error| at calibration changes vs elsewhere: median 0.0015 vs 0.0020; p = 0.7.
+- Five largest centroid jumps: 0.85 sigma at 32.5 h (IBM value changed: no); 0.78 sigma at 311.2 h (IBM value changed: no); 0.75 sigma at 28.5 h (IBM value changed: yes); 0.74 sigma at 312.5 h (IBM value changed: no); 0.60 sigma at 333.8 h (IBM value changed: yes)
+- Rank correlation of IBM-reported readout_error with frozen-boundary error: +0.19 (p = 2.2e-02).
+- Shot noise. Baseline error 0.0045 = 9 of 2000 points; event threshold 0.0100 = more than 20 of 2000.
+  - if the true error were constant at the baseline rate (0.0045): P(one snapshot crosses) = 4.24e-04, expected crossings in 138 scored snapshots = 0.059; observed 5.
+  - if the true error were constant at the mean rate of scored snapshots (0.0050): P(one snapshot crosses) = 1.48e-03, expected crossings in 138 scored snapshots = 0.204; observed 5.
+  - if the true error were constant at the median rate of scored snapshots (0.0045): P(one snapshot crosses) = 4.24e-04, expected crossings in 138 scored snapshots = 0.059; observed 5.
+  - dispersion of the per-snapshot error count (variance / binomial variance): 2.36; chi-square p = 3.8e-17 (1.0 would be pure shot noise around a constant rate).
+  - same with the event snapshots removed: 1.70 (p = 1.0e-06).
+  - threshold sensitivity (events / onsets): 1.5x: 16/11, 2.0x: 5/4, 2.5x: 1/1, 3.0x: 1/1, 4.0x: 0/0
+  - 1 scored snapshot(s) sit exactly on the threshold (20 of 2000, at 219.2 h); real_per_qubit.py counts such a tie as an event through floating-point rounding, this script does not.
+  - per event snapshot: hour, frozen-boundary errors/2000 (binomial p vs baseline, Bonferroni over scored), re-centred errors/2000, e0/e1 per 1000, centroid shift (sigma), gain, rotation (deg)
+    -   48.5 h:  32 (p_adj 2.7e-07), re-centred  32, e0/e1 3/29, shift 0.14, gain 0.976, rot -0.18
+    -  212.5 h:  23 (p_adj 8.8e-03), re-centred  23, e0/e1 11/12, shift 0.22, gain 0.963, rot +2.43
+    -  215.2 h:  21 (p_adj 5.9e-02), re-centred  20, e0/e1 9/12, shift 0.31, gain 0.946, rot -1.42
+    -  236.5 h:  23 (p_adj 8.8e-03), re-centred  23, e0/e1 5/18, shift 0.17, gain 0.966, rot +1.79
+    -  307.2 h:  21 (p_adj 5.9e-02), re-centred  22, e0/e1 1/20, shift 0.25, gain 0.992, rot +3.13
+  - re-centred (own-centroid) error: median 0.0045; in event snapshots median 0.0115. Frozen minus re-centred, summed over event snapshots: 0 of 120 misassigned points are removed by re-centring.
+- Centroid shift from snapshot 0 (cloud sigma): median 0.22, max 0.91; gain range 0.933 to 1.038; rotation range -7.15 to +13.47 deg.
+
