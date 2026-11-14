@@ -1,7 +1,7 @@
 """closed_loop_report.py -- the closed-loop LER table and figure, built from ler_comparison.py outputs.
 
 Usage (repo root): python closed_loop_report.py results/closed_loop
-Expects sub-folders controlled/, fitted/ and real/, each holding ler_summary.md and ler_windows.csv from ler_comparison.py.
+Expects sub-folders controlled/, fitted/ and real/ (and, if present, combined/), each holding ler_summary.md and ler_windows.csv from ler_comparison.py.
 Writes closed_loop_table.md, closed_loop_figure.png and closed_loop_figure.pdf into the folder given.
 Table numbers are copied from the ler_summary.md files (nothing is recomputed); the figure plots ler_windows.csv with no smoothing:
 (a) LER per window pooled over runs; (b) cumulative logical errors of each arm minus the oracle arm, summed over runs.
@@ -18,7 +18,8 @@ ARMS = [("frozen", "Frozen"), ("periodic_24h", "Periodic recalibration, 24 h"), 
 # fixed colour per arm (validated categorical order), plus a line style so identity never rests on colour alone
 STYLE = {"frozen": ("#2a78d6", "-"), "periodic_24h": ("#eb6834", (0, (5, 2))), "oracle": ("#1baf7a", (0, (1, 1.2))),
          "em_pi_fast": ("#eda100", (0, (3, 1, 1, 1))), "em_pi_fast_lag": ("#e87ba4", "-")}
-NAMES = {"step_q1": "Step, 1 sigma (controlled)", "slow_q1": "Slow ramp to 1 sigma (controlled)", "refit_q0": "Fitted profile q0",
+NAMES = {"step_q1": "Step, 1 sigma (controlled)", "slow_q1": "Slow ramp to 1 sigma (controlled)",
+         "physical_quiet_q1": "Physical error ramped x3, no readout drift", "step_physical_q1": "Step, 1 sigma, plus physical error ramped x3", "refit_q0": "Fitted profile q0",
          "refit_q1": "Fitted profile q1", "refit_q2": "Fitted profile q2", "real_q0": "Real replay q0", "real_q1": "Real replay q1",
          "real_q2": "Real replay q2"}
 
@@ -60,7 +61,7 @@ def series(path, scenario, arm):
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else "results/closed_loop"
     S = {}
-    for sub in ("controlled", "fitted", "real"):
+    for sub in ("controlled", "combined", "fitted", "real"):
         p = os.path.join(root, sub, "ler_summary.md")
         if os.path.exists(p):
             S.update(parse(p))

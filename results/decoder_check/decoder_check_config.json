@@ -1,0 +1,25 @@
+{
+ "args": {
+  "out_dir": "/tmp/scratch/out/decoder_check",
+  "force": false,
+  "scenarios": [
+   "step_q1",
+   "real_q1",
+   "real_q0"
+  ],
+  "seeds": 8,
+  "data_dir": "data",
+  "shift_sigma": 1.0,
+  "check_against": "results/closed_loop",
+  "n_unl": 1500,
+  "refit_strength": 1.0,
+  "refit_hours": 336.0,
+  "refit_step": 2.0,
+  "strength": 4.0
+ },
+ "cmd": "decoder_check.py --out-dir /tmp/scratch/out/decoder_check --check-against results/closed_loop",
+ "time": "2026-11-14 05:45:45",
+ "numpy": "2.5.3",
+ "stim": "1.16.0",
+ "pymatching": "2.4.0"
+}

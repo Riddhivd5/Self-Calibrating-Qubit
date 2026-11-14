@@ -32,6 +32,7 @@ Drift sources (the scenario class is printed in each summary heading):
                   third of the run) and slow_q1 (linear ramp reaching --shift-sigma at the end). No other readout drift.
   * real replay : the IBM snapshots themselves (real_q0/q1/q2).
   * physical    : readout fixed, physical error ramped (physical); "both" adds the ramp to the stress-test readout drift.
+  * combined    : step_physical_q1 = the controlled readout step and the physical-error ramp together.
   * gating tests: quiet_q1 (controlled generator, no drift at all), physical_quiet_q1 (the same with the physical-error ramp),
                   mixshift_quiet_q1 and mixshift_step_q1 (the |1> share of the
                   unlabelled stream changes 0.3 -> 0.1 -> 0.5 by thirds of the run while pi stays at its first estimate).
@@ -44,7 +45,7 @@ The fitted and controlled scenarios also need iq_generator_refit.py, iq_generato
 analysis/refit_results/refit_params.json.
 Scenarios: readout_q0 readout_q1 readout_q2 mix10 mix50 physical both real_q0 real_q1 real_q2 batch<N>
            refit_q0 refit_q1 refit_q2 refit_q1_noevents step_q1 slow_q1 quiet_q1 mixshift_quiet_q1 mixshift_step_q1
-           physical_quiet_q1
+           physical_quiet_q1 step_physical_q1
 Flags: --d, --pphys (v5 etas and alarm thresholds were tuned at d=5, p=0.001 and are not retuned); --strength (stress tests);
        --refit-strength, --refit-hours, --refit-step (fitted); --shift-sigma (controlled); --n-unl; --phys-ramp; --batch-sizes;
        --no-detector; --force (outputs are never overwritten without it). run_config.json records the command and versions.
@@ -187,6 +188,9 @@ def scenario_class(name, cfg, a):
         return (f"PHYSICAL ONLY: controlled generator with no readout drift, physical error ramped x{a.phys_ramp:g}"
                 + (f"; {a.n_unl} unlabelled IQ points per update" if a.n_unl != 1500 else ""))
     c = CLASS[cfg["kind"]]
+    if name == "step_physical_q1":
+        return (f"COMBINED: imposed {a.shift_sigma:g} sigma step of the readout at one third of the run AND physical error ramped x{a.phys_ramp:g} "
+                "between one third and two thirds of the run (controlled generator, no other readout drift)")
     if cfg["kind"] == "gen":
         c += f" (profile {cfg['prof']}, strength x{cfg['strength']:g}" + (", plus a physical-error ramp)" if name == "both" else ")")
     if cfg["kind"] == "refit":
@@ -307,6 +311,7 @@ def scenarios(a):
     S["mixshift_quiet_q1"] = dict(kind="controlled", q="q1", shape="step", shift=0.0, p1=mix, phys=flat)
     S["mixshift_step_q1"] = dict(kind="controlled", q="q1", shape="step", p1=mix, phys=flat)
     S["physical_quiet_q1"] = dict(kind="controlled", q="q1", shape="step", shift=0.0, p1=0.3, phys=ramp)
+    S["step_physical_q1"] = dict(kind="controlled", q="q1", shape="step", p1=0.3, phys=ramp)
     return S
 
 
@@ -397,7 +402,7 @@ def boot_samples(runs, shared_traj, rng, boot=2000):
 def summarise(name, cfg, runs, dstats, a, rng):
     shared = cfg["kind"] == "real" or len(runs) < 2
     L = [f"### {name}", f"{scenario_class(name, cfg, a)}.", "", f"{len(runs)} run(s); {len(runs[0]['_t'])} windows per run, {v5.WIN} shots per window, d={v5.D}, "
-         f"physical error {v5.P_PHYS}" + (f" ramped x{a.phys_ramp:g}" if cfg["phys"].__name__ == "<lambda>" and name in ("physical", "both") else "") + ".", "",
+         f"physical error {v5.P_PHYS}" + (f" ramped x{a.phys_ramp:g}" if cfg["phys"].__name__ == "<lambda>" and name in ("physical", "both", "physical_quiet_q1", "step_physical_q1") else "") + ".", "",
          "| arm | pooled LER [95% Wilson CI, counts shots only] | [95% CI resampling " + ("window blocks, one shared trajectory" if shared else "runs") + "] | shots | mean accuracy | gap recovered, pooled [95% bootstrap CI over runs] | median per run [IQR] | runs >= 0.8 |",
          "|---|---|---|---|---|---|---|---|"]
     kf, nf = pooled(runs, "frozen"); ko, _ = pooled(runs, "oracle")

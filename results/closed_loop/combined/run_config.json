@@ -1,0 +1,32 @@
+{
+ "args": {
+  "scenarios": [
+   "physical_quiet_q1",
+   "step_physical_q1"
+  ],
+  "seeds": 8,
+  "strength": 4.0,
+  "phys_ramp": 3.0,
+  "refit_strength": 1.0,
+  "refit_hours": 336.0,
+  "refit_step": 2.0,
+  "shift_sigma": 1.0,
+  "n_unl": 1500,
+  "batch_sizes": [
+   100,
+   300
+  ],
+  "data_dir": "data",
+  "out_dir": "/tmp/scratch/out/combined",
+  "no_detector": true,
+  "d": 5,
+  "pphys": 0.001,
+  "force": false
+ },
+ "git_commit": "709df05da211d6cc45a3effb83f80cb385c92598",
+ "time": "2026-11-14 05:44:57",
+ "numpy": "2.5.3",
+ "stim": "1.16.0",
+ "pymatching": "2.4.0",
+ "cmd": "ler_comparison.py --scenarios physical_quiet_q1 step_physical_q1 --seeds 8 --no-detector --out-dir /tmp/scratch/out/combined"
+}
