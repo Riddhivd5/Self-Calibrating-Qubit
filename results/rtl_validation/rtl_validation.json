@@ -1,0 +1,114 @@
+{
+ "simulator": "Icarus Verilog version 12.0 (stable) ()",
+ "cycles": 1102259,
+ "mismatches": 0,
+ "tests": {
+  "dataset": {
+   "cycles": 894003,
+   "samples": 894000,
+   "valid_out_expected": 894000,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  },
+  "boundary": {
+   "cycles": 48,
+   "samples": 45,
+   "valid_out_expected": 45,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  },
+  "extremes": {
+   "cycles": 7779,
+   "samples": 7776,
+   "valid_out_expected": 7776,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  },
+  "random": {
+   "cycles": 200003,
+   "samples": 140441,
+   "valid_out_expected": 140441,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  },
+  "reset_midstream": {
+   "cycles": 403,
+   "samples": 400,
+   "valid_out_expected": 393,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  },
+  "latency": {
+   "cycles": 12,
+   "samples": 1,
+   "valid_out_expected": 1,
+   "valid_mismatch": 0,
+   "state_mismatch": 0,
+   "unknown": 0
+  }
+ },
+ "dataset": {
+  "points": 894000,
+  "snapshots": 149,
+  "clipped": 0,
+  "coefficient_switches": 446,
+  "fixed_vs_float_differ": 2,
+  "accuracy_rtl": 0.983430648769575,
+  "accuracy_float": 0.9834284116331096,
+  "rtl_equals_model": 894000,
+  "per_qubit": {
+   "q0": {
+    "points": 298000,
+    "coef": [
+     32735,
+     108,
+     824
+    ],
+    "fixed_vs_float_differ": 1,
+    "accuracy_rtl": 0.977731543624161,
+    "accuracy_float": 0.977728187919463
+   },
+   "q1": {
+    "points": 298000,
+    "coef": [
+     32735,
+     -1336,
+     494
+    ],
+    "fixed_vs_float_differ": 0,
+    "accuracy_rtl": 0.9775369127516779,
+    "accuracy_float": 0.9775369127516779
+   },
+   "q2": {
+    "points": 298000,
+    "coef": [
+     32735,
+     -796,
+     107
+    ],
+    "fixed_vs_float_differ": 1,
+    "accuracy_rtl": 0.9950234899328859,
+    "accuracy_float": 0.9950201342281879
+   }
+  }
+ },
+ "latency_clock_edges": 3,
+ "boundary": {
+  "vectors": 45,
+  "zero_sum": 14,
+  "agree": 45
+ },
+ "extremes": {
+  "vectors": 7776,
+  "agree": 7776,
+  "max_abs_sum": 3221192704
+ },
+ "cmd": "rtl/validate_discriminator.py --data-dir data --out-dir /tmp/scratch/out/rtl_validation --force",
+ "time": "2026-11-14 05:15:03",
+ "numpy": "2.5.3"
+}
